@@ -23,8 +23,11 @@
     <script>
         let ciphertext = '';
 
-        document.getElementById('imageInput').addEventListener('change', handleImageUpload);
-        document.getElementById('decryptButton').addEventListener('click', decrypt);
+        // Add event listeners after DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+            document.getElementById('decryptButton').addEventListener('click', decrypt);
+        });
 
         function handleImageUpload(event) {
             const file = event.target.files[0];
