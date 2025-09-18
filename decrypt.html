@@ -11,17 +11,20 @@
 </head>
 <body>
     <h2>Decrypt Rail Fence Stego Image</h2>
-    <input type="file" id="imageInput" accept="image/png" onchange="handleImageUpload(event)">
+    <input type="file" id="imageInput" accept="image/png">
     <br><br>
     <label for="rails">Number of Rails:</label>
     <input type="number" id="rails" min="2" required>
     <br><br>
-    <button onclick="decrypt()">Decrypt</button>
+    <button id="decryptButton">Decrypt</button>
     <p id="result"></p>
     <p id="error"></p>
 
     <script>
         let ciphertext = '';
+
+        document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+        document.getElementById('decryptButton').addEventListener('click', decrypt);
 
         function handleImageUpload(event) {
             const file = event.target.files[0];
@@ -52,28 +55,28 @@
                 binary += (imageData[i + 2] & 1).toString(); // Blue LSB
                 if (binary.length >= 8 * 1000) break; // Limit to reasonable length
             }
-            console.log("Extracted binary length:", binary.length); // Debug
+            console.log("Extracted binary length:", binary.length);
             ciphertext = '';
             for (let i = 0; i < binary.length; i += 8) {
                 let byte = binary.substr(i, 8);
                 if (byte.length < 8) {
-                    console.log("Incomplete byte at:", i); // Debug
+                    console.log("Incomplete byte at:", i);
                     break;
                 }
                 let char_code = parseInt(byte, 2);
                 if (char_code === 0) {
-                    console.log("Null byte detected at:", i); // Debug
+                    console.log("Null byte detected at:", i);
                     break;
                 }
                 ciphertext += String.fromCharCode(char_code);
             }
-            console.log("Extracted ciphertext:", ciphertext); // Debug
+            console.log("Extracted ciphertext:", ciphertext);
             document.getElementById('error').innerText = `Extracted ciphertext: ${ciphertext || 'None'}`;
         }
 
         function railFenceDecrypt(ciphertext, rails) {
             if (!ciphertext || rails < 2) {
-                console.log("Invalid input for decrypt:", ciphertext, rails); // Debug
+                console.log("Invalid input for decrypt:", ciphertext, rails);
                 return "Invalid input";
             }
             let len_rail = new Array(rails).fill(Math.floor(ciphertext.length / rails));
@@ -91,7 +94,7 @@
             let dir_down = false;
             for (let i = 0; i < ciphertext.length; i++) {
                 if (rail[row].length === 0) {
-                    console.log("Rail empty at row:", row); // Debug
+                    console.log("Rail empty at row:", row);
                     break;
                 }
                 result += rail[row][0];
@@ -100,7 +103,7 @@
                 else if (row === rails - 1) dir_down = false;
                 row += dir_down ? 1 : -1;
             }
-            console.log("Decrypted result:", result); // Debug
+            console.log("Decrypted result:", result);
             return result;
         }
 
@@ -108,13 +111,13 @@
             const rails = parseInt(document.getElementById('rails').value);
             if (!ciphertext || !rails) {
                 document.getElementById('error').innerText = 'Upload an image and enter rails first!';
-                console.log("Decrypt called with no data:", ciphertext, rails); // Debug
+                console.log("Decrypt called with no data:", ciphertext, rails);
                 return;
             }
             const plaintext = railFenceDecrypt(ciphertext, rails);
             document.getElementById('result').innerText = `Decrypted Message: ${plaintext}`;
             document.getElementById('error').innerText = '';
-            console.log("Final plaintext:", plaintext); // Debug
+            console.log("Final plaintext:", plaintext);
         }
     </script>
 </body>
