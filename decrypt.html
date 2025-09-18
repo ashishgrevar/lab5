@@ -5,7 +5,8 @@
     <title>Rail Fence Stego Decoder</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #result { margin-top: 20px; font-weight: bold; }
+        #result { margin-top: 20px; font-weight: bold; color: green; }
+        #error { color: red; }
     </style>
 </head>
 <body>
@@ -17,8 +18,11 @@
     <br><br>
     <button onclick="decrypt()">Decrypt</button>
     <p id="result"></p>
+    <p id="error"></p>
 
     <script>
+        let ciphertext = '';
+
         function handleImageUpload(event) {
             const file = event.target.files[0];
             if (file) {
@@ -43,56 +47,74 @@
         function extractLSB(imageData) {
             let binary = '';
             for (let i = 0; i < imageData.length; i += 4) { // RGB channels
-                binary += (imageData[i] & 1);    // Red LSB
-                binary += (imageData[i + 1] & 1); // Green LSB
-                binary += (imageData[i + 2] & 1); // Blue LSB
+                binary += (imageData[i] & 1).toString();    // Red LSB
+                binary += (imageData[i + 1] & 1).toString(); // Green LSB
+                binary += (imageData[i + 2] & 1).toString(); // Blue LSB
                 if (binary.length >= 8 * 1000) break; // Limit to reasonable length
             }
-            let ciphertext = '';
+            console.log("Extracted binary length:", binary.length); // Debug
+            ciphertext = '';
             for (let i = 0; i < binary.length; i += 8) {
                 let byte = binary.substr(i, 8);
-                if (byte.length === 8) {
-                    ciphertext += String.fromCharCode(parseInt(byte, 2));
-                } else {
+                if (byte.length < 8) {
+                    console.log("Incomplete byte at:", i); // Debug
                     break;
                 }
+                let char_code = parseInt(byte, 2);
+                if (char_code === 0) {
+                    console.log("Null byte detected at:", i); // Debug
+                    break;
+                }
+                ciphertext += String.fromCharCode(char_code);
             }
-            sessionStorage.setItem('ciphertext', ciphertext);
+            console.log("Extracted ciphertext:", ciphertext); // Debug
+            document.getElementById('error').innerText = `Extracted ciphertext: ${ciphertext || 'None'}`;
         }
 
         function railFenceDecrypt(ciphertext, rails) {
-            if (!ciphertext || rails < 2) return "Invalid input";
-            let rail = [''] * rails;
+            if (!ciphertext || rails < 2) {
+                console.log("Invalid input for decrypt:", ciphertext, rails); // Debug
+                return "Invalid input";
+            }
+            let len_rail = new Array(rails).fill(Math.floor(ciphertext.length / rails));
+            for (let i = 0; i < ciphertext.length % rails; i++) {
+                len_rail[i] += 1;
+            }
+            let rail = new Array(rails).fill('');
             let idx = 0;
-            let len_rail = [Math.floor(ciphertext.length / rails)] * rails;
-            for (i in range(ciphertext.length % rails)):
-                len_rail[i] += 1
-            for i in range(rails):
-                rail[i] = ciphertext[idx:idx + len_rail[i]]
-                idx += len_rail[i]
-            result = ''
-            row = 0
-            dir_down = False
-            for i in range(len(ciphertext)):
-                result += rail[row][0]
-                rail[row] = rail[row][1:]
-                if row == 0:
-                    dir_down = True
-                elif row == rails - 1:
-                    dir_down = False
-                row += 1 if dir_down else -1
-            return result
+            for (let i = 0; i < rails; i++) {
+                rail[i] = ciphertext.substr(idx, len_rail[i]);
+                idx += len_rail[i];
+            }
+            let result = '';
+            let row = 0;
+            let dir_down = false;
+            for (let i = 0; i < ciphertext.length; i++) {
+                if (rail[row].length === 0) {
+                    console.log("Rail empty at row:", row); // Debug
+                    break;
+                }
+                result += rail[row][0];
+                rail[row] = rail[row].substr(1);
+                if (row === 0) dir_down = true;
+                else if (row === rails - 1) dir_down = false;
+                row += dir_down ? 1 : -1;
+            }
+            console.log("Decrypted result:", result); // Debug
+            return result;
         }
 
         function decrypt() {
-            const rails = document.getElementById('rails').value;
-            const ciphertext = sessionStorage.getItem('ciphertext') || '';
-            if (ciphertext && rails) {
-                const plaintext = railFenceDecrypt(ciphertext, parseInt(rails));
-                document.getElementById('result').innerText = `Decrypted Message: ${plaintext}`;
-            } else {
-                document.getElementById('result').innerText = 'Upload an image and enter rails first!';
+            const rails = parseInt(document.getElementById('rails').value);
+            if (!ciphertext || !rails) {
+                document.getElementById('error').innerText = 'Upload an image and enter rails first!';
+                console.log("Decrypt called with no data:", ciphertext, rails); // Debug
+                return;
             }
+            const plaintext = railFenceDecrypt(ciphertext, rails);
+            document.getElementById('result').innerText = `Decrypted Message: ${plaintext}`;
+            document.getElementById('error').innerText = '';
+            console.log("Final plaintext:", plaintext); // Debug
         }
     </script>
 </body>
