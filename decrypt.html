@@ -23,7 +23,6 @@
     <script>
         let ciphertext = '';
 
-        // Add event listeners after DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('imageInput').addEventListener('change', handleImageUpload);
             document.getElementById('decryptButton').addEventListener('click', decrypt);
@@ -47,6 +46,8 @@
                     img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
+            } else {
+                console.log("No file selected");
             }
         }
 
@@ -56,9 +57,14 @@
                 binary += (imageData[i] & 1).toString();    // Red LSB
                 binary += (imageData[i + 1] & 1).toString(); // Green LSB
                 binary += (imageData[i + 2] & 1).toString(); // Blue LSB
-                if (binary.length >= 8 * 1000) break; // Limit to reasonable length
+                if (binary.length >= 8 * 1000) break; // Limit to 1000 chars
             }
             console.log("Extracted binary length:", binary.length);
+            if (binary.length < 8) {
+                console.log("Binary too short for valid ciphertext");
+                document.getElementById('error').innerText = 'Extracted data too short to decode.';
+                return;
+            }
             ciphertext = '';
             for (let i = 0; i < binary.length; i += 8) {
                 let byte = binary.substr(i, 8);
@@ -67,8 +73,8 @@
                     break;
                 }
                 let char_code = parseInt(byte, 2);
-                if (char_code === 0) {
-                    console.log("Null byte detected at:", i);
+                if (char_code === 0 || i / 8 >= 100) { // Limit to 100 chars
+                    console.log("Null byte or limit at:", i);
                     break;
                 }
                 ciphertext += String.fromCharCode(char_code);
@@ -82,9 +88,13 @@
                 console.log("Invalid input for decrypt:", ciphertext, rails);
                 return "Invalid input";
             }
-            let len_rail = new Array(rails).fill(Math.floor(ciphertext.length / rails));
-            for (let i = 0; i < ciphertext.length % rails; i++) {
-                len_rail[i] += 1;
+            let len_rail = new Array(rails).fill(0);
+            let pos = 0;
+            for (let i = 0; i < ciphertext.length; i++) {
+                let cycle = 2 * (rails - 1);
+                let rail_idx = i % cycle;
+                if (rail_idx >= rails) rail_idx = cycle - rail_idx;
+                len_rail[rail_idx]++;
             }
             let rail = new Array(rails).fill('');
             let idx = 0;
@@ -96,8 +106,8 @@
             let row = 0;
             let dir_down = false;
             for (let i = 0; i < ciphertext.length; i++) {
-                if (rail[row].length === 0) {
-                    console.log("Rail empty at row:", row);
+                if (!rail[row] || rail[row].length === 0) {
+                    console.log("Rail empty or undefined at row:", row);
                     break;
                 }
                 result += rail[row][0];
@@ -118,7 +128,7 @@
                 return;
             }
             const plaintext = railFenceDecrypt(ciphertext, rails);
-            document.getElementById('result').innerText = `Decrypted Message: ${plaintext}`;
+            document.getElementById('result').innerText = `Decrypted Message: ${plaintext || 'Decryption failed'}`;
             document.getElementById('error').innerText = '';
             console.log("Final plaintext:", plaintext);
         }
