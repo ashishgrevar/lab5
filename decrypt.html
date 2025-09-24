@@ -1,137 +1,135 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Rail Fence Stego Decoder</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #result { margin-top: 20px; font-weight: bold; color: green; }
-        #error { color: red; }
-    </style>
-</head>
-<body>
-    <h2>Decrypt Rail Fence Stego Image</h2>
-    <input type="file" id="imageInput" accept="image/png">
-    <br><br>
-    <label for="rails">Number of Rails:</label>
-    <input type="number" id="rails" min="2" required>
-    <br><br>
-    <button id="decryptButton">Decrypt</button>
-    <p id="result"></p>
-    <p id="error"></p>
+import numpy as np
+from PIL import Image
 
-    <script>
-        let ciphertext = '';
+def rail_fence_encrypt(plaintext, rails):
+    rail = [['\n' for _ in range(len(plaintext))] for _ in range(rails)]
+    dir_down = None
+    row, col = 0, 0
 
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('imageInput').addEventListener('change', handleImageUpload);
-            document.getElementById('decryptButton').addEventListener('click', decrypt);
-        });
+    for char in plaintext:
+        if row == 0:
+            dir_down = True
+        if row == rails - 1:
+            dir_down = False
+        rail[row][col] = char
+        col += 1
+        if dir_down:
+            row += 1
+        else:
+            row -= 1
 
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        extractLSB(imageData.data);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            } else {
-                console.log("No file selected");
-            }
-        }
+    ciphertext = ''
+    for i in range(rails):
+        for j in range(len(plaintext)):
+            if rail[i][j] != '\n':
+                ciphertext += rail[i][j]
+    return ciphertext
 
-        function extractLSB(imageData) {
-            let binary = '';
-            for (let i = 0; i < imageData.length; i += 4) { // RGB channels
-                binary += (imageData[i] & 1).toString();    // Red LSB
-                binary += (imageData[i + 1] & 1).toString(); // Green LSB
-                binary += (imageData[i + 2] & 1).toString(); // Blue LSB
-                if (binary.length >= 8 * 1000) break; // Limit to 1000 chars
-            }
-            console.log("Extracted binary length:", binary.length);
-            if (binary.length < 8) {
-                console.log("Binary too short for valid ciphertext");
-                document.getElementById('error').innerText = 'Extracted data too short to decode.';
-                return;
-            }
-            ciphertext = '';
-            for (let i = 0; i < binary.length; i += 8) {
-                let byte = binary.substr(i, 8);
-                if (byte.length < 8) {
-                    console.log("Incomplete byte at:", i);
-                    break;
-                }
-                let char_code = parseInt(byte, 2);
-                if (char_code === 0 || i / 8 >= 100) { // Limit to 100 chars
-                    console.log("Null byte or limit at:", i);
-                    break;
-                }
-                ciphertext += String.fromCharCode(char_code);
-            }
-            console.log("Extracted ciphertext:", ciphertext);
-            document.getElementById('error').innerText = `Extracted ciphertext: ${ciphertext || 'None'}`;
-        }
+def encode_text(image_path, dest_path, plaintext, rails):
+    # Open the image and convert to RGB (not RGBA)
+    img = Image.open(image_path).convert('RGB')
+    pixels = np.array(img)
 
-        function railFenceDecrypt(ciphertext, rails) {
-            if (!ciphertext || rails < 2) {
-                console.log("Invalid input for decrypt:", ciphertext, rails);
-                return "Invalid input";
-            }
-            let len_rail = new Array(rails).fill(0);
-            let pos = 0;
-            for (let i = 0; i < ciphertext.length; i++) {
-                let cycle = 2 * (rails - 1);
-                let rail_idx = i % cycle;
-                if (rail_idx >= rails) rail_idx = cycle - rail_idx;
-                len_rail[rail_idx]++;
-            }
-            let rail = new Array(rails).fill('');
-            let idx = 0;
-            for (let i = 0; i < rails; i++) {
-                rail[i] = ciphertext.substr(idx, len_rail[i]);
-                idx += len_rail[i];
-            }
-            let result = '';
-            let row = 0;
-            let dir_down = false;
-            for (let i = 0; i < ciphertext.length; i++) {
-                if (!rail[row] || rail[row].length === 0) {
-                    console.log("Rail empty or undefined at row:", row);
-                    break;
-                }
-                result += rail[row][0];
-                rail[row] = rail[row].substr(1);
-                if (row === 0) dir_down = true;
-                else if (row === rails - 1) dir_down = false;
-                row += dir_down ? 1 : -1;
-            }
-            console.log("Decrypted result:", result);
-            return result;
-        }
+    # Encrypt using Rail Fence Cipher
+    ciphertext = rail_fence_encrypt(plaintext, rails)
+    # Convert encrypted message to binary with a unique delimiter
+    binary_message = ''.join(format(ord(char), '08b') for char in ciphertext) + '0000000011111111'  # Extended delimiter
 
-        function decrypt() {
-            const rails = parseInt(document.getElementById('rails').value);
-            if (!ciphertext || !rails) {
-                document.getElementById('error').innerText = 'Upload an image and enter rails first!';
-                console.log("Decrypt called with no data:", ciphertext, rails);
-                return;
-            }
-            const plaintext = railFenceDecrypt(ciphertext, rails);
-            document.getElementById('result').innerText = `Decrypted Message: ${plaintext || 'Decryption failed'}`;
-            document.getElementById('error').innerText = '';
-            console.log("Final plaintext:", plaintext);
-        }
-    </script>
-</body>
-</html>
+    if len(binary_message) > pixels.size:  # 3 channels (RGB)
+        raise ValueError("Encrypted message too long to encode in the image")
+
+    # Embed binary message into LSB of each channel
+    index = 0
+    for i in range(pixels.shape[0]):
+        for j in range(pixels.shape[1]):
+            if index >= len(binary_message):
+                break
+            for k in range(3):  # RGB channels only
+                if index < len(binary_message):
+                    pixels[i, j, k] = (pixels[i, j, k] & 0xFE) | int(binary_message[index])
+                    index += 1
+        if index >= len(binary_message):
+            break
+
+    # Save the modified image
+    encoded_img = Image.fromarray(pixels)
+    encoded_img.save(dest_path, format='PNG')
+    print("Ciphertext:", ciphertext)  # Display ciphertext on terminal
+
+def decode_text(image_path, rails):
+    # Open the image
+    img = Image.open(image_path).convert('RGB')
+    pixels = np.array(img)
+
+    # Extract LSB from each pixel
+    binary_message = ""
+    for i in range(pixels.shape[0]):
+        for j in range(pixels.shape[1]):
+            for k in range(3):  # RGB channels
+                binary_message += str(pixels[i, j, k] & 1)
+                if len(binary_message) >= 16 and binary_message[-16:] == "0000000011111111":  # Check extended delimiter
+                    # Convert binary to encrypted text
+                    binary_data = binary_message[:-16]  # Remove delimiter
+                    if len(binary_data) % 8 != 0:
+                        raise ValueError("Corrupted binary data")
+                    encrypted_text = ''.join(chr(int(binary_data[i:i+8], 2)) for i in range(0, len(binary_data), 8))
+                    return rail_fence_decrypt(encrypted_text, rails)
+
+    raise ValueError("No encoded message found or image corrupted")
+
+def rail_fence_decrypt(ciphertext, rails):
+    rail = [['\n' for _ in range(len(ciphertext))] for _ in range(rails)]
+    dir_down = None
+    row, col = 0, 0
+
+    # Mark the rails
+    for i in range(len(ciphertext)):
+        if row == 0:
+            dir_down = True
+        if row == rails - 1:
+            dir_down = False
+        if rail[row][col] == '\n':
+            rail[row][col] = '*'
+        if dir_down:
+            row += 1
+        else:
+            row -= 1
+        col += 1
+
+    # Put the cipher text into the rails
+    index = 0
+    for i in range(rails):
+        for j in range(len(ciphertext)):
+            if rail[i][j] == '*' and index < len(ciphertext):
+                rail[i][j] = ciphertext[index]
+                index += 1
+
+    # Read the plaintext
+    result = []
+    row, col = 0, 0
+    for i in range(len(ciphertext)):
+        if row == 0:
+            dir_down = True
+        if row == rails - 1:
+            dir_down = False
+        if rail[row][col] != '\n':
+            result.append(rail[row][col])
+            col += 1
+        if dir_down:
+            row += 1
+        else:
+            row -= 1
+    return ''.join(result)
+
+# Example usage with user input
+if __name__ == "__main__":
+    try:
+        image_path = input("Enter source image path: ")
+        dest_path = input("Enter destination image path: ")
+        plaintext = input("Enter plaintext to encode: ")
+        rails = int(input("Enter number of rails: "))
+        encode_text(image_path, dest_path, plaintext, rails)
+        decoded_message = decode_text(dest_path, rails)
+        print("Decoded message:", decoded_message)
+    except Exception as e:
+        print(f"Error: {e}")
